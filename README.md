@@ -1,12 +1,19 @@
-# Full-Stack Web Application
+# Task Manager (Flask + SQLite)
 
-A simple full-stack web application built with Python and Flask.
+A simple full-stack CRUD web app built with Python Flask and SQLite.
 
-## Technologies
-- Python
-- Flask
+## Features
+- Create tasks
+- Read task list
+- Update tasks
+- Delete tasks
+
+## Tech Stack
+- Python (Flask)
 - SQLite
-- HTML / CSS
+- HTML/CSS
 
-## Status
-Project in progress.
+## Run locally
+```bash
+pip install -r requirements.txt
+python app.py
