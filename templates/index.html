@@ -1,5 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
+<p>
+  Logged in as: <b>{{ session.get("username", "Guest") }}</b>
+</p>
+
+{% if session.get("user_id") %}
+<form action="{{ url_for('logout') }}" method="POST">
+  <button type="submit">Logout</button>
+</form>
+{% else %}
+<p><a href="{{ url_for('login') }}">Login</a> | <a href="{{ url_for('register') }}">Register</a></p>
+{% endif %}
+
+<hr>
 
 <h1>Task Manager</h1>
 
