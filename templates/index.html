@@ -27,7 +27,6 @@
   {% for t in tasks %}
     <li>
       {{ t["task"] }}
-
       <a href="{{ url_for('edit', task_id=t['id']) }}">Edit</a>
 
       <form action="{{ url_for('delete', task_id=t['id']) }}" method="POST" style="display:inline;">
