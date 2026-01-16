@@ -2,12 +2,36 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Fullstack App</title>
+  <title>Task Manager</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <div class="container">
+
+    <!-- Flash messages (UX) -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div style="margin-bottom: 15px;">
+          {% for category, message in messages %}
+            <div style="
+              padding: 10px;
+              border-radius: 6px;
+              margin: 6px 0;
+              {% if category == 'success' %}
+                background: #e7f7ee; color: #1b5e20; border: 1px solid #b7e1c5;
+              {% else %}
+                background: #fdecea; color: #8a1c1c; border: 1px solid #f5c2c0;
+              {% endif %}
+            ">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
     {% block content %}{% endblock %}
+
   </div>
 </body>
 </html>

@@ -1,9 +1,9 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 import sqlite3
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = "CHANGE-ME-TO-A-RANDOM-SECRET"  # important pour les sessions
+app.secret_key = "CHANGE-ME-TO-A-RANDOM-SECRET"
 DB_NAME = "database.db"
 
 
@@ -11,7 +11,6 @@ def init_db():
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
 
-    # Table users
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,11 +19,12 @@ def init_db():
         )
     """)
 
-    # Table tasks (on garde comme avant pour l’instant)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            task TEXT NOT NULL
+            task TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id)
         )
     """)
 
@@ -38,12 +38,22 @@ def get_connection():
     return conn
 
 
+def login_required():
+    return session.get("user_id") is not None
+
+
 @app.route("/", methods=["GET"])
 def home():
-    # Pour l’instant on affiche toujours la page tasks
+    if not login_required():
+        return redirect(url_for("login"))
+
     conn = get_connection()
-    tasks = conn.execute("SELECT id, task FROM tasks ORDER BY id DESC").fetchall()
+    tasks = conn.execute(
+        "SELECT id, task FROM tasks WHERE user_id = ? ORDER BY id DESC",
+        (session["user_id"],)
+    ).fetchall()
     conn.close()
+
     return render_template("index.html", tasks=tasks)
 
 
@@ -56,7 +66,8 @@ def register():
         password = request.form.get("password", "").strip()
 
         if not username or not password:
-            return render_template("register.html", error="Username and password are required.")
+            flash("Username and password are required.", "error")
+            return render_template("register.html")
 
         password_hash = generate_password_hash(password)
 
@@ -68,9 +79,11 @@ def register():
             )
             conn.commit()
             conn.close()
+            flash("Account created! You can now login.", "success")
             return redirect(url_for("login"))
         except sqlite3.IntegrityError:
-            return render_template("register.html", error="Username already exists.")
+            flash("Username already exists.", "error")
+            return render_template("register.html")
 
     return render_template("register.html")
 
@@ -88,9 +101,11 @@ def login():
         if user and check_password_hash(user["password_hash"], password):
             session["user_id"] = user["id"]
             session["username"] = user["username"]
+            flash(f"Welcome {user['username']} 👋", "success")
             return redirect(url_for("home"))
 
-        return render_template("login.html", error="Invalid username or password.")
+        flash("Invalid username or password.", "error")
+        return render_template("login.html")
 
     return render_template("login.html")
 
@@ -98,47 +113,85 @@ def login():
 @app.route("/logout", methods=["POST"])
 def logout():
     session.clear()
+    flash("You have been logged out.", "success")
     return redirect(url_for("login"))
 
 
-# ---------- TASKS (comme avant) ----------
+# ---------- TASKS ----------
 
 @app.route("/add", methods=["POST"])
 def add():
+    if not login_required():
+        return redirect(url_for("login"))
+
     task = request.form.get("task", "").strip()
-    if task:
-        conn = get_connection()
-        conn.execute("INSERT INTO tasks (task) VALUES (?)", (task,))
-        conn.commit()
-        conn.close()
+    if not task:
+        flash("Task cannot be empty.", "error")
+        return redirect(url_for("home"))
+
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO tasks (task, user_id) VALUES (?, ?)",
+        (task, session["user_id"])
+    )
+    conn.commit()
+    conn.close()
+
+    flash("Task added successfully ✅", "success")
     return redirect(url_for("home"))
 
 
 @app.route("/edit/<int:task_id>", methods=["GET", "POST"])
 def edit(task_id):
+    if not login_required():
+        return redirect(url_for("login"))
+
     conn = get_connection()
 
     if request.method == "POST":
         new_task = request.form.get("task", "").strip()
-        if new_task:
-            conn.execute("UPDATE tasks SET task = ? WHERE id = ?", (new_task, task_id))
-            conn.commit()
+        if not new_task:
+            flash("Task cannot be empty.", "error")
+            conn.close()
+            return redirect(url_for("edit", task_id=task_id))
+
+        conn.execute(
+            "UPDATE tasks SET task = ? WHERE id = ? AND user_id = ?",
+            (new_task, task_id, session["user_id"])
+        )
+        conn.commit()
         conn.close()
+
+        flash("Task updated ✅", "success")
         return redirect(url_for("home"))
 
-    task_row = conn.execute("SELECT id, task FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    task_row = conn.execute(
+        "SELECT id, task FROM tasks WHERE id = ? AND user_id = ?",
+        (task_id, session["user_id"])
+    ).fetchone()
     conn.close()
+
     if task_row is None:
+        flash("Task not found or not allowed.", "error")
         return redirect(url_for("home"))
+
     return render_template("edit.html", task=task_row)
 
 
 @app.route("/delete/<int:task_id>", methods=["POST"])
 def delete(task_id):
+    if not login_required():
+        return redirect(url_for("login"))
+
     conn = get_connection()
-    conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+    conn.execute(
+        "DELETE FROM tasks WHERE id = ? AND user_id = ?",
+        (task_id, session["user_id"])
+    )
     conn.commit()
     conn.close()
+
+    flash("Task deleted 🗑️", "success")
     return redirect(url_for("home"))
 
 
